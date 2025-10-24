@@ -10,14 +10,13 @@ from numpy.linalg import norm
 import os
 
 class Run:
-    def __init__(self, type, **additional) -> None:
+    def __init__(self, type, system, **additional) -> None:
         self.type = type
+        self.system = system
         self.additional = additional # additional stores information which the user has put in
         self.mdpFile = Path()  # we can have a base MDP file, 
         self.mdpArguments = dict()
         self.outLocation = Path()
-        self.updatedFile = None
-        self.topology = None
         self.indexF = None
         self.center = None
         self.US = True if self.additional.get('US') != None else False
@@ -26,6 +25,8 @@ class Run:
         self.prevTPR = None
 
     def updateOutLocation(self, p) -> None:
+        if Path(p).exists():
+            shutil.rmtree(p)
         Path.mkdir(p)
         self.outLocation = p
         return None
@@ -37,10 +38,6 @@ class Run:
             self.updatedFile = p[0]
             self.trajectory = p[1]
             self.prevTPR = p[2]
-        return None
-    
-    def updateTopology(self, p: str) -> None:
-        self.topology = p
         return None
     
     def updateIndex(self, p: str) -> None:
@@ -255,7 +252,7 @@ class Run:
             base=$(basename "$d")
             
             echo "Processing $f (distance: $d)..."
-            srun gmx grompp -f {self.mdpFile} -c "$f" -r "$f" -p {self.topology} -n {self.indexF} -o "${{base}}.tpr" -maxwarn 10
+            srun gmx grompp -f {self.mdpFile} -c "$f" -r "$f" -p {self.system.topology} -n {self.indexF} -o "${{base}}.tpr" -maxwarn 10
 
             if [ "$rType" == "EM_US" ]; then
                 echo "Running EM..."
@@ -288,7 +285,7 @@ class Run:
     
     def genTPR(self, name) -> None:
         o = Path(self.outLocation / f"{name}.tpr").absolute()
-        makeTPR(self.mdpFile, self.updatedFile, self.topology, o, self.indexF)
+        makeTPR(self.mdpFile, self.system.SystemManager.latestFile[0], self.system.topology, o, self.indexF)
         return None
         
     def statusCheck(self, src:list, dest:Path) -> None:
@@ -300,16 +297,16 @@ class Run:
         #runMD_CPU(self.type, 10)
         if self.US and self.type == 'CONFIG':
             self.generateFrames()
-            self.updatedFile = self.configNames
+            self.system.SystemManager.latestFile = [self.configNames]
             return None
         if self.US:
-            p = self.chunk(self.updatedFile, 15)
+            p = self.chunk(self.system.SystemManager.latestFile, 15)
             for c in p:
                 self.umbrellaSpecific(c, self.type)
             f = False
             while f == False:
                 f = self.statusCheck(self.configNames, self.outLocation)
-            self.updatedFile = self.configNames
+            self.system.SystemManager.latestFile = [self.configNames]
             return None
         else:
             runMD(name, 1, 'off', 12)
@@ -324,7 +321,7 @@ class Run:
 
     def retrieveLatestFile(self):
         if self.US:
-            return [self.updatedFile] # whole directory
+            return [self.system.SystemManager.latestFile] # whole directory
         else:
             o = Path(self.outLocation / f"{self.type}.gro")
             t = Path(self.outLocation / f"{self.type}.xtc")

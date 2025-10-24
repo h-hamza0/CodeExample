@@ -6,7 +6,7 @@ class CoarsegrainConvert:
 
     def cgConvert(self) -> None:
         destination = Path(self.system.output_dir / 'CG')
-        finalLoc = cg2atConvert(Path(self.system.US) / 'MD' / 'clust.gro', destination)
+        finalLoc = cg2atConvert(self.system.SystemManager.latestFile[0], destination)
         self.system.cg2atPath = finalLoc
-        self.system.updatedFile = finalLoc
+        self.system.SystemManager.latestFile = [finalLoc]
         return None

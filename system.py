@@ -38,22 +38,22 @@ class SystemState: # will need to be called outside this though.
 
 
 class System:
-    def __init__(self, gmx_run, gmx_path, input_dir, output_dir, forcefield, idxGRPS, boxSize, boxDist, Wradius, cg2at, US="None") -> None: 
-        self.molecules = list()
+    def __init__(self, name, gmx_run, gmx_path, input_dir, output_dir, forcefield, idxGRPS, boxSize, boxDist, Wradius, cg2at, resolvate, US="None") -> None: 
         self.runs = list()
+        self.name = name
         self.gmx_run = gmx_run
         self.gmx_path = gmx_path
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.forcefield = Path(forcefield)
         self.topology = None
-        self.updatedFile = None
         self.idxGRPS = idxGRPS
         self.boxSize = boxSize
         self.boxDist = boxDist
         self.Wradius = Wradius
         self.cg2at = cg2at
         self.indx = None
+        self.resolvate = resolvate
         self.US = US
         self.updatedTraj = None
         self.updatedTPR = None
@@ -65,6 +65,7 @@ class System:
         self.MoleculeManager = None
         self.SystemManager = None
         self.TopologyManager = None
+        self.prepRun()
     
     def addRuns(self, s: Run) -> None:
         self.runs.append(s)
@@ -72,16 +73,20 @@ class System:
     
     def updateLatestFile(self, s) -> None:
         if len(s) == 1:
-            self.updatedFile = s[0]
+            self.SystemManager.latestFile = [s[0]]
         else:
-            self.updatedFile = s[0]
+            self.SystemManager.latestFile = [s[0]]
             self.trajectory = s[1]
             self.prevTPR = s[2]
         return None
     
-    def retrieveStatus(self) -> None: # simply logging, can be replaced
-        print(f'Molecules: {self.molecules}')
-        print(f'Stages: {self.runs}')
+    def setupRuns(self) -> None:
+        for r in self.runs:
+            o = Path(self.output_dir / f'{r.type}')
+            r.system = self
+            r.updateOutLocation(o)
+            r.setMDP()
+            r.updateIndex(self.indx)
         return None
     
     def prepRun(self) -> None:
@@ -92,21 +97,23 @@ class System:
         self.MoleculeManager = MoleculeManager(self)
         self.TopologyManager = TopologyManager(self)
 
-    def setup(self) -> None: # stays here
-        self.prepRun()
-        self.DirectoryManager.checkExistence() # ignore error, works just fine
-        if self.cg2at != 'False':
-            self.CoarseGrainConverter.cgConvert()
+    def setup(self) -> None:
+        self.setupRuns()
+        self.DirectoryManager.checkExistence()
         self.DirectoryManager.setupDirectory()
         self.MoleculeManager.manage()
         if int(self.boxDist) != 0:
             self.BoxManager.centerBox()
-        if self.cg2at != 'False':
+        if self.cg2at != 'False' and self.resolvate != 'False':
+            self.BoxManager.solvateBox()
+        elif self.cg2at == 'AA':
             self.BoxManager.solvateAA()
             self.BoxManager.ionizeBox()
-        else:
-            self.BoxManager.solvateBox()
+        if self.cg2at != 'False':
+            self.CoarseGrainConverter.cgConvert()
         self.IndexManager.generateIndex()
+        self.BoxManager.computeComponents()
+        self.TopologyManager.generateTopology()
         return None
 
 

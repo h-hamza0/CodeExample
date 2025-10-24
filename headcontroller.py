@@ -5,6 +5,7 @@ from pathlib import Path
 from molecules import *
 from runBlock import *
 from system import *
+from SystemManager import *
 from typing import Union
 import ast
 import sys
@@ -20,7 +21,7 @@ class Parser:
         self.path = Path(fname) 
         self.molecules = list()
         self.runs = list()
-        self.system: System
+        self.systems = SystemManager()
 
     def listToDict(self, list:list) -> dict:
         """
@@ -50,7 +51,7 @@ class Parser:
         while len(lines) > 0:
             cond = lines.pop()
             vals = list()
-            if cond == 'system':
+            if cond == 'sys':
                 while lines[-1] != 'end':
                     vals.append(lines.pop())
                 if len(vals) != 0:
@@ -85,7 +86,7 @@ class Parser:
         """
         p = self.listToDict(lines)
         print(f'Parsing: Molecule {p["name"]}')
-        requiredParams = ['nmol', 'insertion_radius']
+        requiredParams = ['nmol', 'insertion_radius', 'CGAT']
         for r in requiredParams:
             if r not in p:
                 print(f"Missing {r}!")
@@ -105,12 +106,13 @@ class Parser:
         """
         p = self.listToDict(lines)
         print(f'Parsing: System')
-        requiredParams = ['gmx_run', 'gmx_path', 'input_dir', 'output_dir', 'forcefield', 'idxGRPS', 'boxSize', 'boxDist', 'Wradius', 'US', 'cg2at']
+        requiredParams = ['name', 'gmx_run', 'gmx_path', 'input_dir', 'output_dir', 'forcefield', 'idxGRPS', 'boxSize', 'boxDist', 'Wradius', 'US', 'cg2at', 'resolvate']
 
         for r in requiredParams:
             if r not in p:
                 print(f"Missing {r}!")
-        self.system = self.developSystem(**p) # instead of passing to self.system, pass to SystemManager.
+        system = self.developSystem(**p) # instead of passing to self.system, pass to SystemManager.
+        self.systems.addSystem(system)
         if not Path(p['input_dir']).is_dir():
             print('Input Directory does not exist')
             raise NotADirectoryError
@@ -140,51 +142,14 @@ class Parser:
     def developRun(self, **kwargs) -> Run:
         return Run(**kwargs)
 
-    def parse(self) -> System: # Physical representation of pipeline all HeadController would do is for each step in pL, run step, perform validations, proceed with next steps. Fancy for loop
+    def parse(self) -> SystemManager: # Physical representation of pipeline all HeadController would do is for each step in pL, run step, perform validations, proceed with next steps. Fancy for loop
         self.check()
         for m in self.molecules:
-            self.system.addMolecule(m) # method to validate molecule perhaps # here, instead we would call an implementation of MoleculeManager? 
-            # no need for this potentially
+            self.systems.retrieveSystem(m.system).MoleculeManager.updateMoleculeStorage(m)
         for s in self.runs:
-            self.system.addRuns(s)
-            # no need for this potentially.
-
-        self.system.retrieveStatus() # just logging. 
-
-        return self.system
-
-
-class HeadController:
-    def __init__(self) -> None:
-        pass
-    # arguments to deploy development of SETUP
-    # validation
-
-    # arguments to deploy development of RUNS
-    # validation
-
-    # arguments to deploy development of ANALYSIS
-    # validation
-
-    # end
-    pass
+            self.systems.retrieveSystem(s.system).addRuns(s)
+        return self.systems # instance of SystemManager.
 
 p = Parser(f"{sys.argv[1]}")
-system = p.parse()
-system.setup()
-latestFile = [system.updatedFile]
-for stages in system.runs:
-    # preproc for each run
-    o = Path(system.output_dir / f'{stages.type}')
-    stages.updateOutLocation(o)
-    stages.updateTopology(system.topology)
-    stages.setMDP()
-    stages.updateIndex(system.indx)
-
-
-for stages in system.runs:
-    # actual run
-    stages.updateUpdatedFile(latestFile)    
-    system.updateLatestFile(latestFile)
-    stages.run()
-    latestFile = stages.retrieveLatestFile()
+systems = p.parse()
+systems.run()

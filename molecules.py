@@ -7,8 +7,9 @@ import subprocess
 # [More to be added]
 
 class Molecule:
-    def __init__(self, name, nmol, insertion_radius, packmol, CGAT, insert) -> None: # also pass this hthrough a data class...
+    def __init__(self, name, system, nmol, insertion_radius, CGAT, packmol, insert, itp) -> None: # also pass this hthrough a data class...
         self.name = name
+        self.system = system
         self.itp_file = None
         self.gro_file = None
         self.nmol = int(nmol)
@@ -17,6 +18,7 @@ class Molecule:
         self.packmol = packmol
         self.pdb_file = None
         self.CGAT = CGAT
+        self.itp = itp
         self.insert = insert # decide if we are actually inserting this into the system or just using it to make our topology
     # Base molecule class, params such as name, itp file, gro file [ itp and gro added in system parse and setup ]
 
