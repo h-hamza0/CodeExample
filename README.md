@@ -2,6 +2,8 @@ Automated Python MD Simulation Pipeline
 
 Example input file: exampleScript.txt
 
+Example use: python headcontroller.py exampleScript.txt
+
 Purpose of this project is to entirely automate the mass launching of jobs (also complex tasks such as umbrella sampling) in a programmatically sensible manner. 
 
 Results:
